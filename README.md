@@ -48,7 +48,7 @@ The current protocol work in this repository comes from:
 
 Related notes live in:
 
-- [docs/win68he_calibration_protocol.md](../docs/win68he_calibration_protocol.md)
+- [docs/win68he_calibration_protocol.md](docs/win68he_calibration_protocol.md)
 
 ## Running
 
@@ -74,4 +74,4 @@ flutter run -d windows
 
 ## License
 
-This repository currently inherits the project license from the repository root.
+See [LICENSE](LICENSE).

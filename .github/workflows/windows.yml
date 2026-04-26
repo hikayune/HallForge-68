@@ -1,0 +1,101 @@
+name: Build Windows App
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  metadata:
+    name: Get Metadata
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.extract_version.outputs.version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Extract version from pubspec
+        id: extract_version
+        shell: bash
+        run: |
+          version=$(grep '^version:' pubspec.yaml | head -n 1 | awk '{print $2}' | cut -d'+' -f1)
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+  build_windows:
+    name: Build Windows
+    needs: metadata
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.29.3
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze project
+        run: flutter analyze
+
+      - name: Build Windows release
+        run: flutter build windows --release
+
+      - name: Archive Windows build
+        shell: pwsh
+        run: |
+          $version = "${{ needs.metadata.outputs.version }}"
+          $artifactName = "hallforge68-windows-$version.zip"
+          $sourcePath = "build/windows/x64/runner/Release"
+          $destinationPath = "build/$artifactName"
+          Compress-Archive -Path "$sourcePath\*" -DestinationPath $destinationPath -Force
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HallForge-68-Windows
+          path: build/hallforge68-windows-${{ needs.metadata.outputs.version }}.zip
+
+  release_windows:
+    name: Release Windows Artifact
+    if: github.event_name == 'workflow_dispatch'
+    needs: [metadata, build_windows]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: HallForge-68-Windows
+          path: dist
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          tag_name: v${{ needs.metadata.outputs.version }}
+          name: HallForge 68 v${{ needs.metadata.outputs.version }}
+          body: |
+            Windows release build for HallForge 68.
+
+            Current focus:
+            - desktop shell
+            - Windows HID bridge
+            - early WIN68HE tooling foundation
+          files: |
+            dist/**/*.zip
